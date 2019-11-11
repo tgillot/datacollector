@@ -44,6 +44,17 @@ public class EventHubConfigBean {
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.STRING,
+      label = "Environment Domain Name",
+      defaultValue = "",
+      description = "Domain name of the Azure environment",
+      displayPosition = 20,
+      group = "EVENT_HUB"
+  )
+  public String domainName = "";
+
+  @ConfigDef(
+      required = true,
+      type = ConfigDef.Type.STRING,
       label = "Shared Access Policy Name",
       defaultValue = "",
       description = "Name of a shared access policy associated with the namespace",
