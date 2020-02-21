@@ -63,7 +63,7 @@ import static org.awaitility.Awaitility.await;
 public class TestRestServicePushSource {
 
   @Test
-  public void testRestServiceOrigin() throws Exception {
+  public void testRestServiceOrigin() {
     RawHttpConfigs httpConfigs = new RawHttpConfigs();
     httpConfigs.appId = () -> "id";
     httpConfigs.port = NetworkUtils.getRandomPort();
@@ -109,6 +109,10 @@ public class TestRestServicePushSource {
           } else {
             header.setAttribute(RestServiceReceiver.STATUS_CODE_RECORD_HEADER_ATTR_NAME, "200");
           }
+
+          // Set custom response headers
+          header.setAttribute(RestServiceReceiver.RESPONSE_HEADER_ATTR_NAME_PREFIX + "test", "value");
+
           runner.getSourceResponseSink().addResponse(record);
         });
       });
@@ -161,6 +165,11 @@ public class TestRestServicePushSource {
         emptyPayloadRecordHeader.getAttribute(RestServiceReceiver.EMPTY_PAYLOAD_RECORD_HEADER_ATTR_NAME)
     );
     Assert.assertEquals(method, emptyPayloadRecordHeader.getAttribute(RestServiceReceiver.METHOD_HEADER));
+
+
+    // check custom HTTP Response header
+    Assert.assertNotNull(response.getHeaders().getFirst("test"));
+    Assert.assertEquals("value", response.getHeaders().getFirst("test"));
   }
 
   private void testPayloadRequest(

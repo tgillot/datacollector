@@ -15,6 +15,7 @@
  */
 package com.streamsets.pipeline.upgrader;
 
+import com.streamsets.pipeline.api.StageUpgrader;
 import com.streamsets.pipeline.api.impl.Utils;
 
 import java.util.ArrayList;
@@ -40,14 +41,18 @@ public class StringListConfigAddUpgraderAction<T> extends UpgraderAction<StringL
   }
 
   @Override
-  public void upgrade(Map<String, Object> originalConfigs, T configs) {
+  public void upgrade(
+      StageUpgrader.Context context,
+      Map<String, Object> originalConfigs,
+      T configs
+  ) {
     Utils.checkNotNull(getName(), "name");
     Utils.checkNotNull(getValue(), "value");
     ConfigsAdapter configsAdapter = wrap(configs);
     ConfigsAdapter.Pair pair = configsAdapter.find(getName());
     List<String> entries = (pair == null) ? new ArrayList<>() : (List<String>) pair.getValue();
     entries = (entries == null) ? new ArrayList<>() : new ArrayList<>(entries);
-    entries.add(value);
+    entries.add(resolveValueIfEL(originalConfigs, value).toString());
     configsAdapter.set(getName(), entries);
   }
 

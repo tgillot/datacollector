@@ -42,9 +42,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -510,13 +513,20 @@ public class TestPipelineConfigurationValidator {
           conf.addConfiguration(new Config("clusterConfig.useYarnKerberosKeytab", true));
           conf.addConfiguration(new Config("clusterConfig.yarnKerberosKeytabSource", KeytabSource.PROPERTIES_FILE));
           return null;
+        },
+        conf -> {
+          final File dummyKeytabFile = createDummyTempKeytabFile().toFile();
+          conf.set(SecurityConfiguration.KERBEROS_KEYTAB_KEY, dummyKeytabFile.getAbsolutePath());
+          conf.set(SecurityConfiguration.KERBEROS_ALWAYS_RESOLVE_PROPS_KEY, true);
+          conf.set(SecurityConfiguration.KERBEROS_PRINCIPAL_KEY, "dummy@CLUSTER");
+          return null;
         }
     );
     final PipelineConfiguration conf = validator.validate();
-    Assert.assertTrue(conf.getIssues().hasIssues());
+    // as of SDC-12911, this is a valid scenario; there should no longer be a validation error
+    Assert.assertFalse(conf.getIssues().hasIssues());
     List<Issue> issues = conf.getIssues().getIssues();
-    Assert.assertThat(issues, hasSize(1));
-    Assert.assertEquals(ValidationError.VALIDATION_0307.name(), issues.get(0).getErrorCode());
+    Assert.assertThat(issues, empty());
   }
 
   @Test
@@ -528,7 +538,8 @@ public class TestPipelineConfigurationValidator {
           conf.addConfiguration(new Config("clusterConfig.clusterType", "YARN"));
           conf.addConfiguration(new Config("clusterConfig.useYarnKerberosKeytab", true));
           conf.addConfiguration(new Config("clusterConfig.yarnKerberosKeytabSource", KeytabSource.PIPELINE));
-          conf.addConfiguration(new Config("clusterConfig.yarnKerberosKeytab", "/path/to/a/keytab"));
+          final File dummyKeytabFile = createDummyTempKeytabFile().toFile();
+          conf.addConfiguration(new Config("clusterConfig.yarnKerberosKeytab", dummyKeytabFile.getAbsolutePath()));
           return null;
         }
     );
@@ -702,6 +713,38 @@ public class TestPipelineConfigurationValidator {
   }
 
   @Test
+  public void testNullKeytabPropertyWhileDisallowed() {
+    PipelineConfigurationValidator validator = createClusterPropertiesValidator(
+        false,
+        conf -> {
+          conf.addConfiguration(new Config("executionMode", "BATCH"));
+          conf.addConfiguration(new Config("clusterConfig.clusterType", "YARN"));
+          conf.addConfiguration(new Config("clusterConfig.useYarnKerberosKeytab", true));
+          conf.addConfiguration(new Config("clusterConfig.yarnKerberosKeytabSource", KeytabSource.PROPERTIES_FILE));
+          return null;
+        },
+        conf -> {
+          conf.set(ValidationUtil.ALLOW_KEYTAB_PROPERTY, false);
+          conf.set(SecurityConfiguration.KERBEROS_ENABLED_KEY, false);
+          conf.unset(SecurityConfiguration.KERBEROS_KEYTAB_KEY);
+          return null;
+        }
+    );
+    final PipelineConfiguration conf = validator.validate();
+    Assert.assertTrue(conf.getIssues().hasIssues());
+    List<Issue> issues = conf.getIssues().getIssues();
+    Assert.assertEquals(
+        // we should have both of these errors, in this case
+        // prior to SDC-13243, this just resulted in a NullPointerException
+        new HashSet<>(Arrays.asList(
+            ValidationError.VALIDATION_0307.getCode(),
+            ValidationError.VALIDATION_0401.getCode())
+        ),
+        issues.stream().map(issue -> issue.getErrorCode()).collect(Collectors.toSet())
+    );
+  }
+
+  @Test
   public void testFieldsWithSlashPrefix() {
     StageLibraryTask lib = MockStages.createStageLibrary();
     PipelineConfiguration conf = MockStages.createPipelineConfigurationWithFieldNames(
@@ -769,12 +812,8 @@ public class TestPipelineConfigurationValidator {
 
     if (sdcKerbEnabled) {
       dataCollectorConfig.set(SecurityConfiguration.KERBEROS_PRINCIPAL_KEY, "dummy@REALM");
-      try {
-        final File dummyKeytabFile = File.createTempFile("dummy_", "keytab");
-        dataCollectorConfig.set(SecurityConfiguration.KERBEROS_KEYTAB_KEY, dummyKeytabFile.getAbsolutePath());
-      } catch (IOException e) {
-        throw new RuntimeException("Failed to create temp dummy keytab file for test", e);
-      }
+      final File dummyKeytabFile = createDummyTempKeytabFile().toFile();
+      dataCollectorConfig.set(SecurityConfiguration.KERBEROS_KEYTAB_KEY, dummyKeytabFile.getAbsolutePath());
     }
 
     if (updateSdcConfigs != null) {
@@ -783,6 +822,17 @@ public class TestPipelineConfigurationValidator {
     final PipelineConfiguration conf = MockStages.createPipelineConfigurationSourceTarget();
     updatePipelineConfigs.apply(conf);
     return new PipelineConfigurationValidator(lib, "name", conf, dataCollectorConfig, Mockito.mock(RuntimeInfo.class));
+  }
+
+  private static Path createDummyTempKeytabFile() {
+    final Path tempKeytab;
+    try {
+      tempKeytab = Files.createTempFile("dummy_", ".keytab");
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to create temp dummy keytab file", e);
+    }
+    tempKeytab.toFile().deleteOnExit();
+    return tempKeytab;
   }
 
 }

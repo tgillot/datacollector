@@ -23,12 +23,14 @@ import com.streamsets.pipeline.api.Label;
  */
 @GenerateResourceBundle
 public enum SparkClusterType implements Label {
-  LOCAL("None (local)"),
-  YARN("Hadoop YARN"),
-  DATABRICKS("Databricks"),
-  STANDALONE_SPARK_CLUSTER("Standalone Spark Cluster"),
-  SQL_SERVER_BIG_DATA_CLUSTER("SQL Server Big Data Cluster"),
   AZURE_HD_INSIGHT("Apache Spark for HDInsight"),
+  DATABRICKS("Databricks"),
+  EMR("EMR"),
+  YARN("Hadoop YARN"),
+  KUBERNETES("Kubernetes Cluster (advanced users only)"),
+  LOCAL("None (local)"),
+  STANDALONE_SPARK_CLUSTER("Spark Standalone Cluster"),
+  SQL_SERVER_BIG_DATA_CLUSTER("SQL Server 2019 Big Data Cluster"),
   ;
 
   private final String label;

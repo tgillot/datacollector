@@ -23,11 +23,11 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.13.0-SNAPSHOT</version>
+    <version>3.14.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <artifactId>streamsets-datacollector-kinesis-lib</artifactId>
-  <version>3.13.0-SNAPSHOT</version>
+  <version>3.14.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Amazon Kinesis Library</description>
   <name>StreamSets Data Collector Amazon Kinesis Library</name>
   <packaging>jar</packaging>
@@ -35,7 +35,7 @@
   <properties>
     <awssdk.version>1.11.385</awssdk.version>
     <kinesis.client.version>1.8.8</kinesis.client.version>
-    <kpl.version>0.12.10</kpl.version>
+    <kpl.version>0.12.11</kpl.version>
     <commons-lang3.version>3.4</commons-lang3.version>
     <commons-math3.version>3.5</commons-math3.version>
   </properties>
@@ -165,6 +165,12 @@
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
       <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-stagesupport</artifactId>
+      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
   </dependencies>

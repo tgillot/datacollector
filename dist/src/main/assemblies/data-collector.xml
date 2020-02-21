@@ -189,6 +189,12 @@
       <outputDirectory>/streamsets-libs/</outputDirectory>
     </fileSet>
 
+    <!-- SSH Tunnel lib -->
+    <fileSet>
+      <directory>${basedir}/../sshtunnel-lib/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
+
     <!-- crypto-lib -->
     <fileSet>
       <directory>${basedir}/../crypto-lib/target/streamsets-libs/</directory>
@@ -416,6 +422,10 @@
 
 
     <!-- CDH5 Kafka libs -->
+    <fileSet>
+      <directory>${basedir}/../${cdh_kafka_4_1-lib}/target/streamsets-libs/</directory>
+      <outputDirectory>/streamsets-libs/</outputDirectory>
+    </fileSet>
     <fileSet>
       <directory>${basedir}/../${cdh_kafka_3_1-lib}/target/streamsets-libs/</directory>
       <outputDirectory>/streamsets-libs/</outputDirectory>

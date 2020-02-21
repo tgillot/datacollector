@@ -38,7 +38,7 @@ public class EventHubCommon {
         .setNamespaceName(commonConf.namespaceName)
         .setEventHubName(commonConf.eventHubName)
         .setEndpoint(commonConf.namespaceName, commonConf.domainName)
-        .setSasKey(commonConf.sasKey)
+        .setSasKey(commonConf.sasKey.get())
         .setSasKeyName(commonConf.sasKeyName);
 
 

@@ -17,6 +17,10 @@ package com.streamsets.pipeline.lib.startJob;
 
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Stage;
+import com.streamsets.pipeline.lib.startPipeline.Groups;
+import com.streamsets.pipeline.lib.startPipeline.StartPipelineCommon;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,10 +38,36 @@ public class StartJobCommon {
     this.conf = conf;
   }
 
-  public List<Stage.ConfigIssue> init(List<Stage.ConfigIssue> issues) {
+  public List<Stage.ConfigIssue> init(List<Stage.ConfigIssue> issues, Stage.Context context) {
     if (!conf.baseUrl.endsWith("/")) {
       conf.baseUrl += "/";
     }
+    if (conf.tlsConfig.isEnabled()) {
+      conf.tlsConfig.init(
+          context,
+          Groups.TLS.name(),
+          StartPipelineCommon.SSL_CONFIG_PREFIX,
+          issues
+      );
+    }
+
+    if (CollectionUtils.isNotEmpty(conf.jobIdConfigList)) {
+      int index = 1;
+      for (JobIdConfig jobIdConfig: conf.jobIdConfigList) {
+        if (StringUtils.isEmpty(jobIdConfig.jobId)) {
+          Stage.ConfigIssue issue = context.createConfigIssue(
+              com.streamsets.pipeline.lib.startJob.Groups.JOB.name(),
+              "conf.jobIdConfigList",
+              StartJobErrors.START_JOB_06,
+              index
+          );
+          issues.add(issue);
+          break;
+        }
+        index++;
+      }
+    }
+
     return issues;
   }
 
@@ -63,6 +93,8 @@ public class StartJobCommon {
               outputField.put(jobIdField.getValueAsString(), startPipelineOutputField);
             }
             success &= fields.get("success").getValueAsBoolean();
+          } else {
+            success = false;
           }
         } catch (Exception ex) {
           LOG.error(ex.getMessage(), ex);

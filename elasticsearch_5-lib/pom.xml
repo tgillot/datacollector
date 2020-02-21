@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.13.0-SNAPSHOT</version>
+    <version>3.14.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-elasticsearch_5-lib</artifactId>
-  <version>3.13.0-SNAPSHOT</version>
+  <version>3.14.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Elastic Search 5 Lib</description>
   <name>StreamSets Data Collector Elastic Search 5 Lib</name>
   <packaging>jar</packaging>
@@ -36,7 +36,7 @@
   <properties>
     <elasticsearch.version>5.3.0</elasticsearch.version>
     <gson.version>2.2.4</gson.version>
-    <log4j2.version>2.7</log4j2.version>
+    <log4j2.version>2.12.1</log4j2.version>
   </properties>
 
   <dependencies>

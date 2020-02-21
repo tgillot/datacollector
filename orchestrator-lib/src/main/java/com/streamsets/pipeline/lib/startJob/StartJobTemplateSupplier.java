@@ -18,10 +18,10 @@ package com.streamsets.pipeline.lib.startJob;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.Field;
-import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.api.impl.Utils;
+import com.streamsets.pipeline.api.base.OnRecordErrorException;
 import com.streamsets.pipeline.lib.util.ThreadUtil;
+import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.client.filter.CsrfProtectionFilter;
 import org.slf4j.Logger;
@@ -46,11 +46,12 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
   private final StartJobConfig conf;
   private final String templateJobId;
   private final String runtimeParametersList;
-  private final Stage.Context context;
+  private final ErrorRecordHandler errorRecordHandler;
   private ObjectMapper objectMapper = new ObjectMapper();
   private Field responseField = null;
   private String userAuthToken;
   private List<String> jobInstancesIdList = new ArrayList<>();
+  private ClientBuilder clientBuilder = ClientBuilder.newBuilder();
 
   private List<String> successStates = ImmutableList.of(
       "INACTIVE"
@@ -65,12 +66,16 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
       StartJobConfig conf,
       String templateJobId,
       String runtimeParametersList,
-      Stage.Context context
+      ErrorRecordHandler errorRecordHandler
   ) {
     this.conf = conf;
     this.templateJobId = templateJobId;
     this.runtimeParametersList = runtimeParametersList;
-    this.context = context;
+    this.errorRecordHandler = errorRecordHandler;
+
+    if (conf.tlsConfig.getSslContext() != null) {
+      clientBuilder.sslContext(conf.tlsConfig.getSslContext());
+    }
   }
 
   @Override
@@ -84,9 +89,9 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
       } else {
         waitForJobCompletion();
       }
-    } catch (Exception ex) {
+    } catch (StageException ex) {
       LOG.error(ex.getMessage(), ex);
-      context.reportError(ex);
+      errorRecordHandler.onError(ex.getErrorCode(), ex.getMessage(), ex);
     }
     return responseField;
   }
@@ -113,23 +118,24 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
     }
   }
 
-  private void getUserAuthToken() throws StageException {
+  private void getUserAuthToken() throws OnRecordErrorException {
     // 1. Login to DPM to get user auth token
     Response response = null;
     try {
       Map<String, String> loginJson = new HashMap<>();
       loginJson.put("userName", conf.username.get());
       loginJson.put("password", conf.password.get());
-      response = ClientBuilder.newClient()
+      response = clientBuilder.build()
           .target(conf.baseUrl + "security/public-rest/v1/authentication/login")
           .register(new CsrfProtectionFilter("CSRF"))
           .request()
           .post(Entity.json(loginJson));
       if (response.getStatus() != Response.Status.OK.getStatusCode()) {
-        throw new RuntimeException(Utils.format("DPM Login failed, status code '{}': {}",
+        throw new StageException(
+            StartJobErrors.START_JOB_01,
             response.getStatus(),
             response.readEntity(String.class)
-        ));
+        );
       }
       userAuthToken = response.getHeaderString(X_USER_AUTH_TOKEN);
     } finally {
@@ -139,11 +145,20 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
     }
   }
 
-  private List<Map<String, Object>> startJobTemplate() throws IOException {
+  private List<Map<String, Object>> startJobTemplate() throws OnRecordErrorException {
     String jobStartUrl = conf.baseUrl + "jobrunner/rest/v1/job/" + templateJobId + "/createAndStartJobInstances";
     List<Map<String, Object>> runtimeParametersList = null;
     if (StringUtils.isNotEmpty(this.runtimeParametersList)) {
-      runtimeParametersList = objectMapper.readValue(this.runtimeParametersList, List.class);
+      try {
+        runtimeParametersList = objectMapper.readValue(this.runtimeParametersList, List.class);
+      } catch (IOException e) {
+        throw new StageException(
+            StartJobErrors.START_JOB_05,
+            templateJobId,
+            e.toString(),
+            e
+        );
+      }
     }
 
     Map<String, Object> jobTemplateCreationInfo = new HashMap<>();
@@ -151,17 +166,19 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
     jobTemplateCreationInfo.put("paramName", conf.parameterName);
     jobTemplateCreationInfo.put("runtimeParametersList", runtimeParametersList);
 
-    try (Response response = ClientBuilder.newClient()
+    try (Response response = clientBuilder.build()
         .target(jobStartUrl)
         .register(new CsrfProtectionFilter("CSRF"))
         .request()
         .header(X_USER_AUTH_TOKEN, userAuthToken)
         .post(Entity.json(jobTemplateCreationInfo))) {
       if (response.getStatus() != Response.Status.OK.getStatusCode()) {
-        throw new RuntimeException(Utils.format("Job Start failed, status code '{}': {}",
+        throw new StageException(
+            StartJobErrors.START_JOB_04,
+            templateJobId,
             response.getStatus(),
             response.readEntity(String.class)
-        ));
+        );
       }
       return (List<Map<String, Object>>)response.readEntity(List.class);
     }
@@ -169,7 +186,7 @@ public class StartJobTemplateSupplier implements Supplier<Field> {
 
   private Map<String, Map<String, Object>> getMultipleJobStatus() {
     String jobStatusUrl = conf.baseUrl + "jobrunner/rest/v1/jobs/status";
-    try (Response response = ClientBuilder.newClient()
+    try (Response response = clientBuilder.build()
         .target(jobStatusUrl)
         .register(new CsrfProtectionFilter("CSRF"))
         .request()

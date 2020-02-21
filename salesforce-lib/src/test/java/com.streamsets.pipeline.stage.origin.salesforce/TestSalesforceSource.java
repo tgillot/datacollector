@@ -51,6 +51,7 @@ public class TestSalesforceSource {
   private static final String offsetColumn = "Id";
   private static final String query = "SELECT Id, Name FROM Account WHERE Id > '${offset}' ORDER BY Id";
   private static final String SOQL_QUERY_MUST_INCLUDE = "SOQL query must include";
+  public static final String ERROR_PARSING_SOQL_QUERY = "Error parsing SOQL query";
 
   private int port;
   private String authEndpoint;
@@ -310,5 +311,38 @@ public class TestSalesforceSource {
     conf.showTrace = true;
 
     return conf;
+  }
+
+  // SDC-12932 - The Salesforce Origin fails and gives cryptic error message
+  @Test
+  public void testSoqlQueryParseError() throws Exception {
+    ForceSourceConfigBean conf = getForceSourceConfig();
+    conf.soqlQuery = "FirstName, LastName, Email, LeadSource FROM Contact";
+    ForceSource origin = new ForceSource(conf);
+
+    SourceRunner runner = new SourceRunner.Builder(ForceDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    List<Stage.ConfigIssue> issues = runner.runValidateConfigs();
+    assertEquals(1, issues.size());
+    assertTrue(issues.get(0).toString().contains(ERROR_PARSING_SOQL_QUERY));
+  }
+
+  // SDC-12935 - Valid SOQL queries are giving validation errors
+  @Test
+  public void testSoqlQueryObjectName() throws Exception {
+    ForceSourceConfigBean conf = getForceSourceConfig();
+    conf.soqlQuery = "select contact.id, firstname, lastname, email from Contact " +
+        "where Contact.Id <> '0036g000002s3cqAAA' and Account.Id = '0016g0000036KRCAA2' order by Contact.Id";
+    conf.disableValidation = true;
+    ForceSource origin = new ForceSource(conf);
+
+    SourceRunner runner = new SourceRunner.Builder(ForceDSource.class, origin)
+        .addOutputLane("lane")
+        .build();
+
+    List<Stage.ConfigIssue> issues = runner.runValidateConfigs();
+    assertEquals(0, issues.size());
   }
 }

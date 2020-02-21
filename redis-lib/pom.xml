@@ -23,12 +23,12 @@
   <parent>
     <groupId>com.streamsets</groupId>
     <artifactId>streamsets-datacollector-stage-lib-parent</artifactId>
-    <version>3.13.0-SNAPSHOT</version>
+    <version>3.14.0-SNAPSHOT</version>
     <relativePath>../stage-lib-parent</relativePath>
   </parent>
   <groupId>com.streamsets</groupId>
   <artifactId>streamsets-datacollector-redis-lib</artifactId>
-  <version>3.13.0-SNAPSHOT</version>
+  <version>3.14.0-SNAPSHOT</version>
   <description>StreamSets Data Collector Redis 2.9.x, 3.0.x Lib</description>
   <name>StreamSets Data Collector Redis 2.9.x, 3.0.x Lib</name>
   <packaging>jar</packaging>
@@ -90,7 +90,7 @@
     <dependency>
       <groupId>com.streamsets</groupId>
       <artifactId>streamsets-datacollector-lookup-protolib</artifactId>
-      <version>3.13.0-SNAPSHOT</version>
+      <version>3.14.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
@@ -120,6 +120,12 @@
       <groupId>com.github.kstyrc</groupId>
       <artifactId>embedded-redis</artifactId>
       <version>${embedded-redis.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.streamsets</groupId>
+      <artifactId>streamsets-datacollector-stagesupport</artifactId>
+      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
   </dependencies>

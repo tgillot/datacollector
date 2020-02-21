@@ -38,7 +38,7 @@ public abstract class HttpConfigs {
 
   public abstract int getMaxConcurrentRequests();
 
-  public abstract CredentialValue getAppId();
+  public abstract List<? extends CredentialValue> getAppIds();
 
   public abstract int getMaxHttpRequestSizeKB();
 
@@ -47,6 +47,8 @@ public abstract class HttpConfigs {
   public abstract boolean isAppIdViaQueryParamAllowed();
 
   public abstract TlsConfigBean getTlsConfigBean();
+
+  public abstract boolean isApplicationIdEnabled();
 
   public boolean getNeedClientAuth() {
     return false;

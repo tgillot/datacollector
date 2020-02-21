@@ -42,16 +42,14 @@ public class TestRemoteEventHandlerTask {
     RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
     Mockito.when(runtimeInfo.getDataDir()).thenReturn(testDir.getAbsolutePath());
     Configuration conf = new Configuration();
-    RemoteEventHandlerTask task = new RemoteEventHandlerTask(remoteDataCollector,
-        eventSenderReceiver,
+    RemoteEventHandlerTask task = new RemoteEventHandlerTask(remoteDataCollector, executorService,
         executorService,
         stageLibrary,
         runtimeInfo,
         conf
     );
 
-    Assert.assertEquals(
-        new File(testDir, DisconnectedSSOManager.DISCONNECTED_SSO_AUTHENTICATION_FILE),
+    Assert.assertEquals(new File(testDir, DisconnectedSSOManager.DISCONNECTED_SSO_AUTHENTICATION_FILE),
         task.getDisconnectedSsoCredentialsDataStore().getFile()
     );
   }

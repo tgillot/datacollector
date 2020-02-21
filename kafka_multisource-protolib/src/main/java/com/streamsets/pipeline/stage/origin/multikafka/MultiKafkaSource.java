@@ -81,6 +81,9 @@ public class MultiKafkaSource extends BasePushSource {
 
   public class MultiTopicCallable implements Callable<Long> {
 
+    // keep it same as BaseKafkaConsumer09.CONSUMER_POLLING_WINDOW_MS for now
+    // TODO - Evaluate if this needs to be reduced to 10 ms
+    private static final long MIN_CONSUMER_POLLING_INTERVAL_MS = 100;
     private MultiSdcKafkaConsumer<String, byte[]> consumer;
     private final long threadID;
     private final List<String> topicList;
@@ -110,7 +113,9 @@ public class MultiKafkaSource extends BasePushSource {
       LOG.debug("Thread {} waiting on other consumer threads to start up", Thread.currentThread().getName());
       startProcessingGate.await();
 
-      LOG.debug("Starting poll loop in thread {}", Thread.currentThread().getName());
+      LOG.debug("Starting poll loop in thread: {}", Thread.currentThread().getName());
+
+      LOG.info("Minimum Kafka consumer Poll interval is set to: {}, MIN_CONSUMER_POLLING_INTERVAL_MS");
       try {
         consumer.subscribe(topicList);
         // protected loop. want it to finish completely, or not start at all.
@@ -122,7 +127,7 @@ public class MultiKafkaSource extends BasePushSource {
         while (!getContext().isStopped() && !Thread.interrupted()) {
 
           // Xavi's awesome Deadman timer.
-          long pollInterval = Math.max(0, conf.batchWaitTime - (System.currentTimeMillis() - startTime));
+          long pollInterval = Math.max(MIN_CONSUMER_POLLING_INTERVAL_MS, conf.batchWaitTime - (System.currentTimeMillis() - startTime));
 
           ConsumerRecords<String, byte[]> messages = consumer.poll(pollInterval);
 
@@ -143,30 +148,29 @@ public class MultiKafkaSource extends BasePushSource {
                 item.key()
             ));
 
-            if (records.size() >= conf.maxBatchSize) {
-
+            if (records.size() >= batchSize) {
               records.forEach(batchContext.getBatchMaker()::addRecord);
               commitSyncAndProcess(batchContext);
               startTime = System.currentTimeMillis();
-
               recordsProcessed += records.size();
               records.clear();
-
               batchContext = getContext().startBatch();
               errorRecordHandler = new DefaultErrorRecordHandler(getContext(), batchContext);
             }
-          } 
+          }
 
           messagesProcessed += messages.count();
 
-          // Transmit remaining when batchWaitTime expired
-          if (pollInterval == 0 && !records.isEmpty()) {
 
-            records.forEach(batchContext.getBatchMaker()::addRecord);
-            commitSyncAndProcess(batchContext);
+          // Transmit remaining when batchWaitTime expired
+          if (pollInterval <= MIN_CONSUMER_POLLING_INTERVAL_MS) {
             startTime = System.currentTimeMillis();
-            recordsProcessed += records.size();
-            records.clear();
+            if (!records.isEmpty()) {
+              records.forEach(batchContext.getBatchMaker()::addRecord);
+              commitSyncAndProcess(batchContext);
+              recordsProcessed += records.size();
+              records.clear();
+            }
           }
 
         }
@@ -231,7 +235,6 @@ public class MultiKafkaSource extends BasePushSource {
           } catch (Exception e) {
             throw new OnRecordErrorException(record, KafkaErrors.KAFKA_201, partition, offset, e.getMessage(), e);
           }
-
           records.add(record);
           record = parser.parse();
         }

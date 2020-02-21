@@ -16,127 +16,32 @@
 package com.streamsets.pipeline.lib.httpsource;
 
 import com.streamsets.pipeline.api.ConfigDef;
-import com.streamsets.pipeline.api.ConfigDefBean;
 import com.streamsets.pipeline.api.credential.CredentialValue;
-import com.streamsets.pipeline.lib.http.HttpConfigs;
-import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 
-public class RawHttpConfigs extends HttpConfigs {
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-  public RawHttpConfigs() {
-    super("HTTP", "httpConfigs.");
-  }
-
-  @ConfigDefBean(groups = "TLS")
-  public TlsConfigBean tlsConfigBean = new TlsConfigBean();
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.BOOLEAN,
-      label = "Require Client Authentication",
-      description = "Enable if SSL needs client authentication (MASSL/MTLS/Two-Way-SSL/Mutual SSL authentication " +
-          "Support). Any client that has its certificate in the server's truststore will be able to establish a TLS " +
-          "connection to the server",
-      defaultValue = "false",
-      displayPosition = 1010,
-      group = "TLS",
-      dependsOn = "tlsConfigBean.tlsEnabled",
-      triggeredByValue = "true"
-  )
-  public boolean needClientAuth = false;
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
-      defaultValue = "8000",
-      label = "HTTP Listening Port",
-      description = "HTTP endpoint to listen for data.",
-      displayPosition = 10,
-      group = "HTTP",
-      min = 1,
-      max = 65535
-  )
-  public int port;
-
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.NUMBER,
-      defaultValue = "10",
-      label = "Max Concurrent Requests",
-      description = "Maximum number of concurrent requests allowed by the origin.",
-      displayPosition = 15,
-      group = "HTTP",
-      min = 1,
-      max = 200
-  )
-  public int maxConcurrentRequests;
+public class RawHttpConfigs extends CommonHttpConfigs {
 
   @ConfigDef(
       required = true,
       type = ConfigDef.Type.CREDENTIAL,
       label = "Application ID",
-      description = "Only HTTP requests presenting this token will be accepted.",
+      description = "Only HTTP request presenting this token will be accepted",
       displayPosition = 20,
       group = "HTTP"
   )
   public CredentialValue appId = () -> "";
 
-  @ConfigDef(
-      required = true,
-      type = ConfigDef.Type.BOOLEAN,
-      defaultValue = "false",
-      label = "Application ID in URL",
-      description = "Use when the application ID is included in a query parameter in the URL instead of in the request header - http://localhost:8000?sdcApplicationId=<Application ID>",
-      displayPosition = 21,
-      group = "HTTP"
-  )
-  public boolean appIdViaQueryParamAllowed;
-
   @Override
-  public int getPort() {
-    return port;
+  public List<? extends CredentialValue> getAppIds() {
+    return new ArrayList<>(Arrays.asList(appId));
   }
 
   @Override
-  public int getMaxConcurrentRequests() {
-    return maxConcurrentRequests;
-  }
-
-  @Override
-  public CredentialValue getAppId() {
-    return appId;
-  }
-
-  private int maxHttpRequestSizeKB = -1;
-
-  // in MBs
-  public void setMaxHttpRequestSizeKB(int size) {
-    maxHttpRequestSizeKB = size;
-  }
-
-  @Override
-  public int getMaxHttpRequestSizeKB() {
-    return maxHttpRequestSizeKB;
-  }
-
-  @Override
-  public boolean isTlsEnabled() {
-    return tlsConfigBean.isEnabled();
-  }
-
-  @Override
-  public boolean isAppIdViaQueryParamAllowed() {
-    return appIdViaQueryParamAllowed;
-  }
-
-  @Override
-  public TlsConfigBean getTlsConfigBean() {
-    return tlsConfigBean;
-  }
-
-  @Override
-  public boolean getNeedClientAuth() {
-    return needClientAuth;
+  public boolean isApplicationIdEnabled(){
+    return true;
   }
 
 }

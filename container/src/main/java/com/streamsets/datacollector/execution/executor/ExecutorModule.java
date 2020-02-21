@@ -113,6 +113,18 @@ public class ExecutorModule {
     );
   }
 
+  @Provides @Singleton @Named("syncEventsHandlerExecutor")
+  public SafeScheduledExecutorService provideEventSenderExecutor(
+      Configuration configuration,
+      RuntimeInfo runtimeInfo
+  ) {
+    return new MetricSafeScheduledExecutorService(
+        getSyncEventsSenderSize(configuration),
+        "syncEventsHandlerExecutor",
+        runtimeInfo.getMetrics()
+    );
+  }
+
   @Provides @Singleton @Named("supportBundleExecutor")
   public SafeScheduledExecutorService provideSupportBundleExecutor(
     Configuration configuration,
@@ -161,7 +173,14 @@ public class ExecutorModule {
   public static int getEventSize(Configuration configuration) {
     return configuration.get(
       ExecutorConstants.EVENT_EXECUTOR_THREAD_POOL_SIZE_KEY,
-      ExecutorConstants.EVENT_EXECUTOR_THREAD_POOL_SIZE_DEFAULT
+      getRunnerSize(configuration)
+    );
+  }
+
+  public static int getSyncEventsSenderSize(Configuration configuration) {
+    return configuration.get(
+        ExecutorConstants.SYNC_EVENTS_SENDER_EXECUTOR_THREAD_POOL_SIZE_KEY,
+        ExecutorConstants.SYNC_EVENTS_SENDER_EXECUTOR_THREAD_POOL_SIZE_DEFAULT
     );
   }
 

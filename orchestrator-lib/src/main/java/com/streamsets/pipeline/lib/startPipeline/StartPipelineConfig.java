@@ -29,8 +29,8 @@ public class StartPipelineConfig {
       required = true,
       type = ConfigDef.Type.STRING,
       defaultValue = "http://localhost:18630",
-      label = "Data Collector URL",
-      description = "Data Collector base URL",
+      label = "Execution Engine URL",
+      description = "URL of Data Collector, Data Collector Edge, or Transformer that runs the specified pipelines",
       displayPosition = 10,
       group = "PIPELINE"
   )
@@ -63,7 +63,7 @@ public class StartPipelineConfig {
       required = true,
       type = ConfigDef.Type.BOOLEAN,
       label = "Control Hub Enabled",
-      description = "Data Collector is registered with Control Hub",
+      description = "Execution engine is registered with Control Hub",
       defaultValue = "false",
       displayPosition = 50,
       group = "PIPELINE"
@@ -87,10 +87,10 @@ public class StartPipelineConfig {
       required = true,
       type = ConfigDef.Type.BOOLEAN,
       label = "Run in Background",
-      description = "Runs the pipeline in the background, passing the record downstream after starting the pipeline. " +
-          "When not used, the processor waits until the pipeline is complete before passing the record downstream.",
+      description = "Run started pipelines in the background and pass the record to the next stage immediately after " +
+          "starting pipelines. If not selected, pass the record to the next stage after all started pipelines finish.",
       defaultValue = "false",
-      displayPosition = 50,
+      displayPosition = 70,
       group = "PIPELINE"
   )
   public boolean runInBackground = false;
@@ -101,7 +101,7 @@ public class StartPipelineConfig {
       defaultValue = "5000",
       label = "Delay Between State Checks",
       description = "Milliseconds to wait before checking pipeline state",
-      displayPosition = 60,
+      displayPosition = 80,
       group = "PIPELINE",
       min = 0,
       max = Integer.MAX_VALUE,
@@ -114,8 +114,8 @@ public class StartPipelineConfig {
       required = true,
       type = ConfigDef.Type.CREDENTIAL,
       label = "User Name",
-      description = "Data Collector user name. Use your Control Hub user name if Data Collector is " +
-          "registered with Control Hub.",
+      description = "User that runs the pipeline. Enter a Data Collector, Data Collector Edge, or Transformer user, " +
+          "or enter a Control Hub user for execution engines registered with Control Hub.",
       defaultValue = "admin",
       displayPosition = 81,
       group = "CREDENTIALS"
@@ -126,6 +126,7 @@ public class StartPipelineConfig {
       required = true,
       type = ConfigDef.Type.CREDENTIAL,
       label = "Password",
+      description = "Password for the user.",
       defaultValue = "admin",
       displayPosition = 82,
       group = "CREDENTIALS"

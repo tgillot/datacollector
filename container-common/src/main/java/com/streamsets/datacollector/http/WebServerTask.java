@@ -542,7 +542,12 @@ public abstract class WebServerTask extends AbstractTask implements Registration
     // registering ssoService with runtime, to enable cache flushing
     ((List)getRuntimeInfo().getAttribute(SSO_SERVICES_ATTR)).add(proxySsoService);
     appHandler.getServletContext().setAttribute(SSOService.SSO_SERVICE_KEY, proxySsoService);
-    security.setAuthenticator(injectActivationCheck(new SSOAuthenticator(appContext, proxySsoService, appConf)));
+    security.setAuthenticator(injectActivationCheck(new SSOAuthenticator(
+        appContext,
+        proxySsoService,
+        appConf,
+        runtimeInfo.getProductName()
+    )));
     return security;
   }
 
@@ -803,21 +808,28 @@ public abstract class WebServerTask extends AbstractTask implements Registration
       server.start();
       port = server.getURI().getPort();
       sessionHandler.setSessionCookie(JSESSIONID_COOKIE + port);
-      if(runtimeInfo.getBaseHttpUrl().equals(RuntimeInfo.UNDEF)) {
-        try {
-          String baseHttpUrl = "http://";
-          if (isSSLEnabled()) {
-            baseHttpUrl = "https://";
-          }
-          String hostname = conf.get(HTTP_BIND_HOST, HTTP_BIND_HOST_DEFAULT);
-          baseHttpUrl += !"0.0.0.0".equals(hostname) ? hostname : InetAddress.getLocalHost().getCanonicalHostName();
-          baseHttpUrl += ":" + port;
-          runtimeInfo.setBaseHttpUrl(baseHttpUrl);
-        } catch(UnknownHostException ex) {
-          LOG.debug("Exception during hostname resolution: {}", ex);
-          runtimeInfo.setBaseHttpUrl(server.getURI().toString());
+
+      try {
+        String baseHttpUrl = "http://";
+        if (isSSLEnabled()) {
+          baseHttpUrl = "https://";
         }
+        String hostname = conf.get(HTTP_BIND_HOST, HTTP_BIND_HOST_DEFAULT);
+        baseHttpUrl += !"0.0.0.0".equals(hostname) ? hostname : InetAddress.getLocalHost().getCanonicalHostName();
+        baseHttpUrl += ":" + port;
+        if (runtimeInfo.getBaseHttpUrl().equals(RuntimeInfo.UNDEF)) {
+          runtimeInfo.setBaseHttpUrl(baseHttpUrl);
+        }
+        runtimeInfo.setOriginalHttpUrl(baseHttpUrl);
+      } catch(UnknownHostException ex) {
+        LOG.debug("Exception during hostname resolution: {0}", ex);
+        String baseHttpUrl = server.getURI().toString();
+        if (runtimeInfo.getBaseHttpUrl().equals(RuntimeInfo.UNDEF)) {
+          runtimeInfo.setBaseHttpUrl(baseHttpUrl);
+        }
+        runtimeInfo.setOriginalHttpUrl(baseHttpUrl);
       }
+
       System.out.println(Utils.format("Running on URI : '{}'", getHttpUrl()));
       LOG.info("Running on URI : '{}'", getHttpUrl());
       for (Connector connector : server.getConnectors()) {

@@ -47,6 +47,7 @@ import com.streamsets.pipeline.stage.origin.jdbc.CommonSourceConfigBean;
 import com.streamsets.pipeline.stage.origin.jdbc.table.QuoteChar;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import microsoft.sql.DateTimeOffset;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -209,6 +210,20 @@ public class JdbcUtil {
       return true;
     } else if (sqlState.length() >= 2 && STANDARD_DATA_ERROR_SQLSTATES.containsKey(sqlState.substring(0, 2))) {
       return true;
+    } else if (connectionString.contains(":db2:") && StringUtils.isEmpty(sqlState)) {
+      // DB2 driver wraps the original SQL Exception and its meaning is lost. This change is so that we can see
+      // the original SQLException that triggered the error
+      SQLException nextException = ex.getNextException();
+      if (nextException != null) {
+        String nextExceptionSqlState = nextException.getSQLState();
+        if (!StringUtils.isEmpty(nextExceptionSqlState)) {
+          for (String s : customDataSqlCodes) {
+            if (nextExceptionSqlState.equals(s.trim())) {
+              return true;
+            }
+          }
+        }
+      }
     }
     return false;
   }
@@ -408,6 +423,7 @@ public class JdbcUtil {
     );
     for (String offsetColumn : offsetColumnNames) {
       final String minMaxOffsetQuery = String.format(minMaxQuery, offsetColumn, qualifiedName);
+      LOG.debug("Issuing min/max offset query: {}", minMaxOffsetQuery);
       try (
         Statement st = connection.createStatement();
         ResultSet rs = st.executeQuery(minMaxOffsetQuery)
@@ -431,6 +447,18 @@ public class JdbcUtil {
                     throw new IllegalStateException(Utils.format("Unexpected type: {}", colType));
                 }
               }
+              break;
+
+            case SQL_SERVER:
+              if(TableContextUtil.VENDOR_PARTITIONABLE_TYPES.get(DatabaseVendor.SQL_SERVER).contains(colType)) {
+                if (colType == TableContextUtil.TYPE_SQL_SERVER_DATETIMEOFFSET) {
+                  DateTimeOffset dateTimeOffset = rs.getObject(MIN_MAX_OFFSET_VALUE_QUERY_RESULT_SET_INDEX, DateTimeOffset.class);
+                  if (dateTimeOffset != null) {
+                    minMaxValue = dateTimeOffset.getOffsetDateTime().toZonedDateTime().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                  }
+                }
+              }
+              break;
           }
 
           if(minMaxValue == null) {
@@ -622,14 +650,14 @@ public class JdbcUtil {
         // Firstly resolve some vendor specific types - we are careful in case that someone will be clashing
         if(vendor == DatabaseVendor.ORACLE) {
           switch (md.getColumnType(columnIndex)) {
-            case 100: // BINARY_FLOAT
+            case TableContextUtil.TYPE_ORACLE_BINARY_FLOAT:
               float floatValue = rs.getFloat(columnIndex);
               return Field.create(Field.Type.FLOAT, rs.wasNull() ? null : floatValue);
-            case 101: // BINARY_DOUBLE
+            case TableContextUtil.TYPE_ORACLE_BINARY_DOUBLE:
               double doubleValue = rs.getDouble(columnIndex);
               return Field.create(Field.Type.DOUBLE, rs.wasNull() ? null : doubleValue);
-            case -101: // TIMESTAMP WITH TIMEZONE
-            case -102: // TIMESTAMP WITH LOCAL TIMEZONE
+            case TableContextUtil.TYPE_ORACLE_TIMESTAMP_WITH_TIME_ZONE:
+            case TableContextUtil.TYPE_ORACLE_TIMESTAMP_WITH_LOCAL_TIME_ZONE:
               OffsetDateTime offsetDateTime = rs.getObject(columnIndex, OffsetDateTime.class);
               if (offsetDateTime == null) {
                 return timestampToString ?
@@ -644,6 +672,19 @@ public class JdbcUtil {
             case Types.SQLXML:
               SQLXML xml = rs.getSQLXML(columnIndex);
               return Field.create(Field.Type.STRING, xml == null ? null : xml.getString());
+          }
+        } else if (vendor == DatabaseVendor.SQL_SERVER) {
+          if (md.getColumnType(columnIndex) == TableContextUtil.TYPE_SQL_SERVER_DATETIMEOFFSET) {
+              DateTimeOffset dateTimeOffset = rs.getObject(columnIndex, DateTimeOffset.class);
+              if (dateTimeOffset == null) {
+                return timestampToString ?
+                    Field.create(Field.Type.STRING, null) :
+                    Field.create(Field.Type.ZONED_DATETIME, null);
+              }
+              if (timestampToString) {
+                return Field.create(Field.Type.STRING, dateTimeOffset.toString());
+              }
+              return Field.create(Field.Type.ZONED_DATETIME, dateTimeOffset.getOffsetDateTime().toZonedDateTime());
           }
         }
 
@@ -879,8 +920,8 @@ public class JdbcUtil {
 
     config.setJdbcUrl(hikariConfigBean.getConnectionString());
     if (hikariConfigBean.useCredentials){
-       config.setUsername(hikariConfigBean.username.get());
-       config.setPassword(hikariConfigBean.password.get());
+      config.setUsername(hikariConfigBean.getUsername().get());
+      config.setPassword(hikariConfigBean.getPassword().get());
     }
     config.setAutoCommit(autoCommit);
     config.setReadOnly(readOnly);
@@ -921,7 +962,8 @@ public class JdbcUtil {
       Stage.Context context,
       boolean tableAutoCreate
   ) throws SQLException, StageException {
-    HikariDataSource dataSource = new HikariDataSource(createDataSourceConfig(hikariConfigBean, hikariConfigBean.autoCommit, false));
+    HikariDataSource dataSource = new HikariDataSource(createDataSourceConfig(hikariConfigBean,
+        hikariConfigBean.isAutoCommit(), false));
 
     // Can only validate schema+table configuration when the user specified plain constant values and table auto
     // create is not set
@@ -962,8 +1004,7 @@ public class JdbcUtil {
     HikariDataSource dataSource;
     try {
       dataSource = new HikariDataSource(createDataSourceConfig(
-          hikariConfigBean,
-          hikariConfigBean.autoCommit,
+          hikariConfigBean, hikariConfigBean.isAutoCommit(),
           hikariConfigBean.readOnly
       ));
     } catch (RuntimeException e) {

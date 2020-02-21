@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableList;
 import com.streamsets.pipeline.api.OnRecordError;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.credential.CredentialValue;
+import com.streamsets.pipeline.lib.httpsource.CredentialValueBean;
 import com.streamsets.pipeline.lib.tls.TlsConfigBean;
 import com.streamsets.pipeline.sdk.ContextInfoCreator;
 import com.streamsets.pipeline.stage.util.tls.TLSTestUtils;
@@ -46,6 +47,9 @@ import java.net.URL;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -72,8 +76,8 @@ public class TestReceiverServer {
       }
 
       @Override
-      public CredentialValue getAppId() {
-        return () -> "id";
+      public List<CredentialValue> getAppIds() {
+        return new ArrayList<>(Arrays.asList(() -> "id"));
       }
 
       @Override
@@ -95,11 +99,20 @@ public class TestReceiverServer {
       public TlsConfigBean getTlsConfigBean() {
         return null;
       }
+
+      @Override
+      public boolean isApplicationIdEnabled() {
+        return true;
+      }
+
+
     };
 
     HttpReceiver receiver = Mockito.mock(HttpReceiverWithFragmenterWriter.class);
-    Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+    List id = new ArrayList<>(Arrays.asList(new CredentialValueBean("id")));
+    Mockito.when(receiver.getAppIds()).thenReturn(id);
     Mockito.when(receiver.getUriPath()).thenReturn("/path");
+    Mockito.when(receiver.isApplicationIdEnabled()).thenReturn(true);
     BlockingQueue<Exception> exQueue = new ArrayBlockingQueue<>(10);
 
     HttpReceiverServer server = new HttpReceiverServer(configs, receiver, exQueue);
@@ -126,10 +139,11 @@ public class TestReceiverServer {
 
       // valid post
       Mockito.reset(receiver);
-      Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+      Mockito.when(receiver.getAppIds()).thenReturn(id);
       Mockito.when(receiver.validate(Mockito.any(HttpServletRequest.class), Mockito.any(HttpServletResponse.class)))
           .thenReturn(true);
       Mockito.when(receiver.process(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
+      Mockito.when(receiver.isApplicationIdEnabled()).thenReturn(true);
       conn = (HttpURLConnection) new URL("http://localhost:" + port + "/path").openConnection();
       conn.setRequestProperty(HttpConstants.X_SDC_APPLICATION_ID_HEADER, "id");
       conn.setDoOutput(true);
@@ -143,10 +157,11 @@ public class TestReceiverServer {
 
       // valid put
       Mockito.reset(receiver);
-      Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+      Mockito.when(receiver.getAppIds()).thenReturn(id);
       Mockito.when(receiver.validate(Mockito.any(HttpServletRequest.class), Mockito.any(HttpServletResponse.class)))
           .thenReturn(true);
       Mockito.when(receiver.process(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
+      Mockito.when(receiver.isApplicationIdEnabled()).thenReturn(true);
       conn = (HttpURLConnection) new URL("http://localhost:" + port + "/path").openConnection();
       conn.setRequestProperty(HttpConstants.X_SDC_APPLICATION_ID_HEADER, "id");
       conn.setDoOutput(true);
@@ -160,9 +175,10 @@ public class TestReceiverServer {
 
       // invalid post
       Mockito.reset(receiver);
-      Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+      Mockito.when(receiver.getAppIds()).thenReturn(id);
       Mockito.when(receiver.validate(Mockito.any(HttpServletRequest.class), Mockito.any(HttpServletResponse.class)))
           .thenReturn(false);
+      Mockito.when(receiver.isApplicationIdEnabled()).thenReturn(true);
       conn = (HttpURLConnection) new URL("http://localhost:" + port + "/path").openConnection();
       conn.setRequestProperty(HttpConstants.X_SDC_APPLICATION_ID_HEADER, "id");
       conn.setDoOutput(true);
@@ -214,8 +230,8 @@ public class TestReceiverServer {
       }
 
       @Override
-      public CredentialValue getAppId() {
-        return () -> "id";
+      public List<CredentialValue> getAppIds() {
+        return new ArrayList<>(Arrays.asList(() -> "id"));
       }
 
       @Override
@@ -237,11 +253,18 @@ public class TestReceiverServer {
       public TlsConfigBean getTlsConfigBean() {
         return tlsConfigBean;
       }
+
+      @Override
+      public boolean isApplicationIdEnabled() {
+        return true;
+      }
     };
 
     HttpReceiver receiver = Mockito.mock(HttpReceiverWithFragmenterWriter.class);
-    Mockito.when(receiver.getAppId()).thenReturn(() -> "id");
+    List id = new ArrayList<>(Arrays.asList(new CredentialValueBean("id")));
+    Mockito.when(receiver.getAppIds()).thenReturn(id);
     Mockito.when(receiver.getUriPath()).thenReturn("/path");
+    Mockito.when(receiver.isApplicationIdEnabled()).thenReturn(true);
     BlockingQueue<Exception> exQueue = new ArrayBlockingQueue<>(10);
 
     HttpReceiverServer server = new HttpReceiverServer(configs, receiver, exQueue);
@@ -261,7 +284,7 @@ public class TestReceiverServer {
         @Override
         public Boolean call() throws Exception {
           HttpURLConnection conn = getConnection("/path",
-              configs.getAppId(),
+              configs.getAppIds(),
               context,
               TLSTestUtils.getHostname() + ":" + configs.getPort(),
               trustStore.toString(),
@@ -282,7 +305,7 @@ public class TestReceiverServer {
 
   private HttpURLConnection getConnection(
       String path,
-      CredentialValue appId,
+      List<? extends CredentialValue> appId,
       Stage.Context context,
       String hostPort,
       String trustStoreFile,
@@ -295,7 +318,7 @@ public class TestReceiverServer {
     HttpsURLConnection sslConn = (HttpsURLConnection) conn;
     sslConn.setSSLSocketFactory(createSSLSocketFactory(context, trustStoreFile, trustStorePassword));
     sslConn.setHostnameVerifier(ACCEPT_ALL_HOSTNAME_VERIFIER);
-    conn.setRequestProperty(HttpConstants.X_SDC_APPLICATION_ID_HEADER, appId.get());
+    conn.setRequestProperty(HttpConstants.X_SDC_APPLICATION_ID_HEADER, appId.get(0).get());
     return conn;
   }
 

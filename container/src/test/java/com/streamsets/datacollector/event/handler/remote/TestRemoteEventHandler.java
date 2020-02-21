@@ -1,5 +1,4 @@
-/*
- * Copyright 2017 StreamSets Inc.
+/* Copyright 2017 StreamSets Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
 package com.streamsets.datacollector.event.handler.remote;
 
 import com.codahale.metrics.Counter;
@@ -23,8 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.streamsets.datacollector.callback.CallbackInfo;
-import com.streamsets.datacollector.callback.CallbackObjectType;
 import com.streamsets.datacollector.config.DataRuleDefinition;
 import com.streamsets.datacollector.config.DriftRuleDefinition;
 import com.streamsets.datacollector.config.MetricElement;
@@ -41,24 +40,20 @@ import com.streamsets.datacollector.event.client.api.EventClient;
 import com.streamsets.datacollector.event.client.api.EventException;
 import com.streamsets.datacollector.event.dto.AckEvent;
 import com.streamsets.datacollector.event.dto.AckEventStatus;
-import com.streamsets.datacollector.event.dto.BlobDeleteVersionEvent;
-import com.streamsets.datacollector.event.dto.BlobStoreEvent;
 import com.streamsets.datacollector.event.dto.ClientEvent;
+import com.streamsets.datacollector.event.dto.Event;
 import com.streamsets.datacollector.event.dto.EventType;
 import com.streamsets.datacollector.event.dto.PipelinePreviewEvent;
 import com.streamsets.datacollector.event.dto.PipelineStartEvent;
 import com.streamsets.datacollector.event.dto.SDCBuildInfo;
 import com.streamsets.datacollector.event.dto.SDCInfoEvent;
-import com.streamsets.datacollector.event.dto.SaveConfigurationEvent;
 import com.streamsets.datacollector.event.dto.StageInfo;
 import com.streamsets.datacollector.event.handler.DataCollector;
 import com.streamsets.datacollector.event.handler.remote.RemoteEventHandlerTask.EventHandlerCallable;
 import com.streamsets.datacollector.event.json.BlobDeleteVersionEventJson;
 import com.streamsets.datacollector.event.json.BlobStoreEventJson;
 import com.streamsets.datacollector.event.json.ClientEventJson;
-import com.streamsets.datacollector.event.json.CounterJson;
 import com.streamsets.datacollector.event.json.DisconnectedSsoCredentialsEventJson;
-import com.streamsets.datacollector.event.json.MetricRegistryJson;
 import com.streamsets.datacollector.event.json.PingFrequencyAdjustmentEventJson;
 import com.streamsets.datacollector.event.json.PipelineBaseEventJson;
 import com.streamsets.datacollector.event.json.PipelineDeleteEventJson;
@@ -81,20 +76,14 @@ import com.streamsets.datacollector.event.json.SyncAclEventJson;
 import com.streamsets.datacollector.execution.PipelineState;
 import com.streamsets.datacollector.execution.PipelineStatus;
 import com.streamsets.datacollector.execution.Runner;
-import com.streamsets.datacollector.execution.Snapshot;
-import com.streamsets.datacollector.execution.SnapshotInfo;
-import com.streamsets.datacollector.execution.alerts.AlertInfo;
 import com.streamsets.datacollector.execution.manager.PipelineManagerException;
 import com.streamsets.datacollector.execution.manager.PipelineStateImpl;
 import com.streamsets.datacollector.execution.runner.common.PipelineRunnerException;
-import com.streamsets.datacollector.execution.runner.common.SampledRecord;
 import com.streamsets.datacollector.io.DataStore;
 import com.streamsets.datacollector.main.RuntimeInfo;
-import com.streamsets.datacollector.metrics.MetricsConfigurator;
 import com.streamsets.datacollector.restapi.bean.BeanHelper;
 import com.streamsets.datacollector.restapi.bean.PipelineConfigurationJson;
 import com.streamsets.datacollector.runner.MockStages;
-import com.streamsets.datacollector.runner.PipelineRuntimeException;
 import com.streamsets.datacollector.runner.StageOutput;
 import com.streamsets.datacollector.runner.production.SourceOffset;
 import com.streamsets.datacollector.stagelibrary.StageLibraryTask;
@@ -107,9 +96,7 @@ import com.streamsets.lib.security.acl.dto.Acl;
 import com.streamsets.lib.security.acl.json.AclJson;
 import com.streamsets.pipeline.api.Config;
 import com.streamsets.pipeline.api.ExecutionMode;
-import com.streamsets.pipeline.api.Record;
 import com.streamsets.pipeline.api.StageException;
-import com.streamsets.pipeline.api.impl.ErrorMessage;
 import com.streamsets.pipeline.lib.executor.SafeScheduledExecutorService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -137,8 +124,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.empty;
 
 public class TestRemoteEventHandler {
 
@@ -310,12 +295,24 @@ public class TestRemoteEventHandler {
 
     @Override
     public void submit(
-        String targetURL,
+        String path,
         Map<String, String> queryParams,
         Map<String, String> headerParams,
-        List<SDCMetricsJson> sdcMetricsJsonList,
+        List<SDCMetricsJson> sdcMetricsJsons,
         long retryAttempts
     ) {
+
+    }
+
+    @Override
+    public void sendSyncEvents(
+        String absoluteTargetUrl,
+        Map<String, String> queryParams,
+        Map<String, String> headerParams,
+        Event event,
+        long retryAttempts
+    ) {
+
     }
   }
 
@@ -428,14 +425,25 @@ public class TestRemoteEventHandler {
 
     @Override
     public void submit(
-        String targetURL,
+        String path,
         Map<String, String> queryParams,
         Map<String, String> headerParams,
-        List<SDCMetricsJson> sdcMetricsJsonList,
+        List<SDCMetricsJson> sdcMetricsJsons,
         long retryAttempts
     ) {
+
     }
 
+    @Override
+    public void sendSyncEvents(
+        String absoluteTargetUrl,
+        Map<String, String> queryParams,
+        Map<String, String> headerParams,
+        Event event,
+        long retryAttempts
+    ) {
+
+    }
   }
 
   private static class MockSaveEventSenderReceiver implements EventClient {
@@ -545,12 +553,24 @@ public class TestRemoteEventHandler {
 
     @Override
     public void submit(
-        String targetURL,
+        String path,
         Map<String, String> queryParams,
         Map<String, String> headerParams,
-        List<SDCMetricsJson> sdcMetricsJsonList,
+        List<SDCMetricsJson> sdcMetricsJsons,
         long retryAttempts
     ) {
+
+    }
+
+    @Override
+    public void sendSyncEvents(
+        String absoluteTargetUrl,
+        Map<String, String> queryParams,
+        Map<String, String> headerParams,
+        Event event,
+        long retryAttempts
+    ) {
+
     }
 
   }
@@ -814,9 +834,8 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
-        new SafeScheduledExecutorService(1, "testPipelineBaseEventTriggered"),
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testPipelineBaseEventTriggered"),
+        new SafeScheduledExecutorService(1, "syncSender"),
         mockStageLibraryTask,
         mockRuntimeInfo,
         new Configuration()
@@ -903,9 +922,8 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
-        new SafeScheduledExecutorService(1, "testPipelineSaveEventTriggered"),
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testPipelineSaveEventTriggered"),
+        new SafeScheduledExecutorService(1, "testPipelineStartEventTriggered"),
         mockStageLibraryTask,
         mockRuntimeInfo,
         new Configuration(),
@@ -949,8 +967,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testPipelineAckEventError"),
         new SafeScheduledExecutorService(1, "testPipelineAckEventError"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -995,8 +1012,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testPingFrequencyEvent"),
         new SafeScheduledExecutorService(1, "testPingFrequencyEvent"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1045,8 +1061,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testSendingEventClientToServer"),
         new SafeScheduledExecutorService(1, "testSendingEventClientToServer"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1154,8 +1169,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testSendSDCInfoEvent"),
         new SafeScheduledExecutorService(1, "testSendSDCInfoEvent"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1220,8 +1234,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1261,8 +1274,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1321,8 +1333,7 @@ public class TestRemoteEventHandler {
     final StageLibraryTask mockStageLibraryTask = new MockStages.MockStageLibraryTask.Builder().build();
     final RuntimeInfo mockRuntimeInfo = Mockito.mock(RuntimeInfo.class);
     final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
-        mockRemoteDataCollector,
-        eventSenderReceiver,
+        mockRemoteDataCollector, new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         new SafeScheduledExecutorService(1, "testDisconnectedSsoCredentialsEvent"),
         mockStageLibraryTask,
         mockRuntimeInfo,
@@ -1374,5 +1385,149 @@ public class TestRemoteEventHandler {
         requestHeader,
         5);
     Mockito.verify(eventClient, Mockito.times(1)).submit(Mockito.anyString(), Mockito.anyMap(), Mockito.anyMap(), Mockito.anyList(), Mockito.anyInt());
+  }
+
+  @Test
+  public void testSyncSenderMultiplePipelineStatus() throws Exception {
+    EventClient eventClient = Mockito.mock(EventClient.class);
+    RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
+    RemoteDataCollector remoteDataCollector = Mockito.mock(RemoteDataCollector.class);
+    Configuration conf = new Configuration();
+    conf.set(RemoteEventHandlerTask.SHOULD_SEND_SYNC_EVENTS, true);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(
+        remoteDataCollector, new SafeScheduledExecutorService(1, "testSyncSender"),
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(RuntimeInfo.class),
+        conf
+    );
+    RemoteEventHandlerTask.SyncEventSender syncEventSender = remoteEventHandlerTask.new SyncEventSender(
+        eventClient,
+        remoteDataCollector,
+        jsonDto,
+        60000,
+        runtimeInfo,
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Stopwatch.createUnstarted(),
+        120000,
+        70
+    );
+    syncEventSender.call();
+    Mockito.verify(remoteDataCollector, Mockito.times(1)).getPipelines();
+    Mockito.verify(eventClient, Mockito.times(1)).sendSyncEvents(
+        Mockito.eq(remoteEventHandlerTask.getJobRunnerPipelineStatusEventsUrl()),
+        Mockito.anyMap(),
+        Mockito.anyMap(),
+        Mockito.any(),
+        Mockito.any(Long.class)
+    );
+    Mockito.verify(eventClient, Mockito.times(1)).sendSyncEvents(
+        Mockito.eq(remoteEventHandlerTask.getSdcProcessMetricsEventUrl()),
+        Mockito.anyMap(),
+        Mockito.anyMap(),
+        Mockito.any(),
+        Mockito.any(Long.class)
+    );
+  }
+
+  @Test
+  public void testSyncSenderSinglePipelineStatus() throws Exception {
+    EventClient eventClient = Mockito.mock(EventClient.class);
+    RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
+    RemoteDataCollector remoteDataCollector = Mockito.mock(RemoteDataCollector.class);
+    Configuration conf = new Configuration();
+    conf.set(RemoteEventHandlerTask.SHOULD_SEND_SYNC_EVENTS, true);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(remoteDataCollector,
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(RuntimeInfo.class),
+        conf
+    );
+    RemoteEventHandlerTask.SyncEventSender syncEventSender = remoteEventHandlerTask.new SyncEventSender(eventClient,
+        remoteDataCollector,
+        jsonDto,
+        60000,
+        runtimeInfo,
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Stopwatch.createStarted(),
+        120000,
+        70
+    );
+    PipelineAndValidationStatus pipelineAndValidationStatus = new PipelineAndValidationStatus("",
+        "",
+        "",
+        -1,
+        false,
+        null,
+        null,
+        null,
+        false,
+        null,
+        null,
+        0
+    );
+    Mockito.when(remoteDataCollector.getRemotePipelinesWithChanges()).thenReturn(Collections.singletonList(
+        pipelineAndValidationStatus));
+    syncEventSender.call();
+    Mockito.verify(remoteDataCollector, Mockito.times(1)).getRemotePipelinesWithChanges();
+    Mockito.verify(eventClient, Mockito.times(1))
+        .sendSyncEvents(Mockito.eq(remoteEventHandlerTask.getJobRunnerPipelineStatusEventUrl()),
+            Mockito.anyMap(),
+            Mockito.anyMap(),
+            Mockito.any(),
+            Mockito.any(Long.class)
+        );
+  }
+
+  @Test
+  public void testSyncSenderSkipSinglePipelineStatus() throws Exception {
+    EventClient eventClient = Mockito.mock(EventClient.class);
+    RuntimeInfo runtimeInfo = Mockito.mock(RuntimeInfo.class);
+    RemoteDataCollector remoteDataCollector = Mockito.mock(RemoteDataCollector.class);
+    Configuration conf = new Configuration();
+    conf.set(RemoteEventHandlerTask.SHOULD_SEND_SYNC_EVENTS, true);
+    final RemoteEventHandlerTask remoteEventHandlerTask = new RemoteEventHandlerTask(remoteDataCollector,
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Mockito.mock(StageLibraryTask.class),
+        Mockito.mock(RuntimeInfo.class),
+        conf
+    );
+    RemoteEventHandlerTask.SyncEventSender syncEventSender = remoteEventHandlerTask.new SyncEventSender(eventClient,
+        remoteDataCollector,
+        jsonDto,
+        60000,
+        runtimeInfo,
+        new SafeScheduledExecutorService(1, "testSyncSender"),
+        Stopwatch.createStarted(),
+        120000,
+        0
+    );
+    PipelineAndValidationStatus pipelineAndValidationStatus = new PipelineAndValidationStatus("",
+        "",
+        "",
+        -1,
+        false,
+        null,
+        null,
+        null,
+        false,
+        null,
+        null,
+        0
+    );
+    Mockito.when(remoteDataCollector.getRemotePipelinesWithChanges()).thenReturn(Collections.singletonList(
+        pipelineAndValidationStatus));
+    syncEventSender.call();
+    Mockito.verify(remoteDataCollector, Mockito.times(1)).getRemotePipelinesWithChanges();
+    Mockito.verify(eventClient, Mockito.times(0))
+        .sendSyncEvents(
+            Mockito.any(),
+            Mockito.anyMap(),
+            Mockito.anyMap(),
+            Mockito.any(),
+            Mockito.any(Long.class)
+        );
   }
 }

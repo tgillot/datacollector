@@ -42,7 +42,7 @@ public class HdfsFileSystem implements WrappedFileSystem {
   private final static Logger LOG = LoggerFactory.getLogger(HdfsFileSystem.class);
   protected final FileSystem fs;
   private final String filePattern;
-  private final boolean processSubdirectories;
+  protected final boolean processSubdirectories;
   private PathFilter filter;
 
   public HdfsFileSystem(String filePattern, PathMatcherMode mode, boolean processSubdirectories, FileSystem fs) {
@@ -226,7 +226,14 @@ public class HdfsFileSystem implements WrappedFileSystem {
   }
 
   public void mkdir(WrappedFile filePath) {
-    new File(filePath.getAbsolutePath()).mkdir();
+    try {
+      boolean result = fs.mkdirs(new Path(filePath.getAbsolutePath()));
+      if (!result) {
+        LOG.error("Could not create directory '{}", filePath.getAbsolutePath());
+      }
+    } catch (IOException ex) {
+      LOG.error("Could not create directory '{}'", filePath.getAbsolutePath(), ex);
+    }
   }
 
   public boolean patternMatches(String fileName) {

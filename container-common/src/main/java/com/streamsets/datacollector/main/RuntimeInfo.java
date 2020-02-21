@@ -59,11 +59,12 @@ public abstract class RuntimeInfo {
   public static final String SDC_PRODUCT = "sdc";
 
   public static final String SECURITY_PREFIX = "java.security.";
-  public static final String DATA_COLLECTOR_BASE_HTTP_URL = "sdc.base.http.url";
   public static final String PIPELINE_ACCESS_CONTROL_ENABLED = "pipeline.access.control.enabled";
   public static final boolean PIPELINE_ACCESS_CONTROL_ENABLED_DEFAULT = false;
   public static final String DPM_COMPONENT_TYPE_CONFIG = "dpm.componentType";
   public static final String DC_COMPONENT_TYPE = "dc";
+
+  public static final String EMBEDDED_FLAG = "EMBEDDED";
 
   private boolean DPMEnabled;
   private boolean aclEnabled;
@@ -78,9 +79,12 @@ public abstract class RuntimeInfo {
 
   private static final String STREAMSETS_LIBRARIES_EXTRA_DIR_SYS_PROP = "STREAMSETS_LIBRARIES_EXTRA_DIR";
 
+  protected static final String BASE_HTTP_URL_ATTR = "%s.base.http.url";
+
   private final MetricRegistry metrics;
   private final List<? extends ClassLoader> stageLibraryClassLoaders;
   private String httpUrl;
+  private String originalHttpUrl;
   private String appAuthToken;
   private final Map<String, Object> attributes;
   private ShutdownHandler shutdownRunnable;
@@ -136,6 +140,14 @@ public abstract class RuntimeInfo {
 
   public String getBaseHttpUrl() {
     return StringUtils.stripEnd(httpUrl, "/");
+  }
+
+  public void setOriginalHttpUrl(String url) {
+    this.originalHttpUrl = url;
+  }
+
+  public String getOriginalHttpUrl() {
+    return StringUtils.stripEnd(originalHttpUrl, "/");
   }
 
   public String getStaticWebDir() {
@@ -339,6 +351,14 @@ public abstract class RuntimeInfo {
     return propertyPrefix;
   }
 
+  public String getBaseHttpUrlAttr() {
+    return getBaseHttpUrlAttr(getProductName());
+  }
+
+  public static String getBaseHttpUrlAttr(String productName) {
+    return String.format(BASE_HTTP_URL_ATTR, productName);
+  }
+
   public File getPropertiesFile() {
     return new File(getConfigDir(), getProductName() + ".properties");
   }
@@ -350,7 +370,7 @@ public abstract class RuntimeInfo {
     if (configFile.exists()) {
       try(FileReader reader = new FileReader(configFile)) {
         conf.load(reader);
-        runtimeInfo.setBaseHttpUrl(conf.get(DATA_COLLECTOR_BASE_HTTP_URL, runtimeInfo.getBaseHttpUrl()));
+        runtimeInfo.setBaseHttpUrl(conf.get(runtimeInfo.getBaseHttpUrlAttr(), runtimeInfo.getBaseHttpUrl()));
         String appAuthToken = conf.get(RemoteSSOService.SECURITY_SERVICE_APP_AUTH_TOKEN_CONFIG, "").trim();
         runtimeInfo.setAppAuthToken(appAuthToken);
         boolean isDPMEnabled = conf.get(RemoteSSOService.DPM_ENABLED, RemoteSSOService.DPM_ENABLED_DEFAULT);
@@ -436,6 +456,14 @@ public abstract class RuntimeInfo {
     try(FileWriter writer = new FileWriter(configFile)) {
       properties.store(writer, null);
     }
+  }
+
+  /**
+   * Checks whether this RuntimeInfo is in EMBEDDED mode
+   * @return true if the {@link #EMBEDDED_FLAG} is present and set to true
+   */
+  public boolean isEmbedded() {
+    return hasAttribute(EMBEDDED_FLAG) && this.<Boolean>getAttribute(EMBEDDED_FLAG);
   }
 
 }

@@ -48,7 +48,7 @@ public enum Errors implements ErrorCode {
   FORCE_24("Invalid External ID Field expression '{}': {}"),
   FORCE_25("Preview timed out before the origin retrieved data. Try increasing the timeout."),
   FORCE_26("Pipeline was stopped as the origin was retrieving data."),
-  FORCE_27("Error parsing SOQL query {}"),
+  FORCE_27("Error parsing SOQL query: {}"),
   FORCE_28("Error retrieving data: {}"),
   FORCE_29("Malformed ID: {}"),
   FORCE_30("Invalid field name: {}"),
@@ -65,6 +65,9 @@ public enum Errors implements ErrorCode {
   FORCE_41("Unexpected event type in XML Stream: {}"),
   FORCE_42("Can only follow one level of external ID relationship: {}"),
   FORCE_43("Can't find type for field name: {}"),
+  FORCE_44("Can't find Id field for field name: {}"),
+  FORCE_45("Can't retrieve record with id: {}"),
+  FORCE_46("Can't get schema with Id: {}"),
   ;
   private final String msg;
 

@@ -16,11 +16,12 @@
 
 package com.streamsets.pipeline.stage.origin.datalake.gen2;
 
+import com.streamsets.pipeline.lib.dirspooler.DirectorySpooler;
 import com.streamsets.pipeline.lib.dirspooler.SpoolDirConfigBean;
 import com.streamsets.pipeline.lib.dirspooler.WrappedFileSystem;
+import com.streamsets.pipeline.stage.origin.datalake.AzureDirectorySpooler;
 import com.streamsets.pipeline.stage.origin.datalake.AzureHdfsFileSystem;
 import com.streamsets.pipeline.stage.origin.hdfs.HdfsSource;
-import com.streamsets.pipeline.stage.origin.hdfs.spooler.HdfsFileSystem;
 
 public class DataLakeGen2Source extends HdfsSource {
 
@@ -31,15 +32,14 @@ public class DataLakeGen2Source extends HdfsSource {
     this.conf = dataLakeGen2SourceConfigBean;
   }
 
-  /**
-   * SDC-12302: This method is part of a temp workaround for HADOOP-16479 and should be removed once v3.3.0 is released
-   *  HdfsSource.hdfsSourceConfigBean should be reverted to private
-   *
-   * @return An instance of the temporary AzureHdfsFileSystem
-   */
   @Override
   public WrappedFileSystem getFs() {
     return new AzureHdfsFileSystem(super.conf.filePattern, super.conf.pathMatcherMode,
         super.conf.processSubdirectories, hdfsSourceConfigBean.getFileSystem());
+  }
+
+  @Override
+  protected DirectorySpooler.Builder getDirectorySpoolerBuilder() {
+    return new AzureDirectorySpooler.Builder();
   }
 }

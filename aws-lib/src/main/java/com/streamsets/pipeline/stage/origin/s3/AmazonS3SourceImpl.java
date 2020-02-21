@@ -23,7 +23,7 @@ import com.streamsets.pipeline.api.StageException;
 import com.streamsets.pipeline.lib.event.FinishedFileEvent;
 import com.streamsets.pipeline.lib.event.NewFileEvent;
 import com.streamsets.pipeline.lib.event.NoMoreDataEvent;
-import org.json.JSONObject;
+import com.streamsets.pipeline.lib.util.AntPathMatcher;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -80,8 +80,13 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
   @VisibleForTesting
   void createInitialOffsetsMap(Map<String, String> lastSourceOffset) throws StageException {
     List<S3Offset> unorderedListOfOffsets = new ArrayList<>();
+    AntPathMatcher pathMatcher = new AntPathMatcher(s3ConfigBean.s3Config.delimiter);
+    String prefixPattern = s3ConfigBean.s3Config.commonPrefix + s3ConfigBean.s3FileConfig.prefixPattern;
     for (String offset : lastSourceOffset.values()) {
-      unorderedListOfOffsets.add(S3Offset.fromString(offset));
+      S3Offset s3Offset = S3Offset.fromString(offset);
+      if (pathMatcher.match(prefixPattern, s3Offset.getKey())) {
+        unorderedListOfOffsets.add(s3Offset);
+      }
     }
 
     List<S3Offset> orderedListOfOffsets = orderOffsets(unorderedListOfOffsets);
@@ -129,8 +134,8 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
 
       S3Offset offset = getOffsetFromGivenKey(s3Offset.getKey());
 
-      int offsetVal = AmazonS3Util.parseOffset(offset);
-      int s3offsetVal = AmazonS3Util.parseOffset(s3Offset);
+      long offsetVal = AmazonS3Util.parseOffset(offset);
+      long s3offsetVal = AmazonS3Util.parseOffset(s3Offset);
 
       if (!offset.getOffset().equals(S3Constants.MINUS_ONE) &&
           (s3Offset.getOffset().equals(S3Constants.MINUS_ONE) || s3offsetVal > offsetVal)) {
@@ -173,7 +178,7 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
       offsetsMap.put(runnerId, offset);
     } else {
       offset = offsetsMap.computeIfAbsent(runnerId,
-          k -> new S3Offset(S3Constants.EMPTY, S3Constants.MINUS_ONE, S3Constants.EMPTY, S3Constants.ZERO)
+          k -> new S3Offset(S3Constants.EMPTY, S3Constants.ZERO, S3Constants.EMPTY, S3Constants.ZERO)
       );
     }
     return new S3Offset(offset);
@@ -260,9 +265,11 @@ public class AmazonS3SourceImpl extends AbstractAmazonS3Source implements Amazon
   boolean allFilesAreFinished() {
     boolean filesFinished = true;
     for (S3Offset s3Offset : offsetsMap.values()) {
-      filesFinished = s3Offset.getOffset().equals(S3Constants.MINUS_ONE);
-      if (!filesFinished) {
-        break;
+      if (s3Offset.representsFile()) {
+        filesFinished = s3Offset.getOffset().equals(S3Constants.MINUS_ONE);
+        if (!filesFinished) {
+          break;
+        }
       }
     }
     return filesFinished;

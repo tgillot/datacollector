@@ -61,7 +61,7 @@ public class ClusterConfig {
       defaultValue = "CLIENT",
       displayPosition = 103,
       dependsOn = "clusterType",
-      triggeredByValue = {"YARN", "STANDALONE_SPARK_CLUSTER"}
+      triggeredByValue = {"YARN", "STANDALONE_SPARK_CLUSTER", "KUBERNETES"}
   )
   @ValueChooserModel(SparkDeployModeChooserValues.class)
   public SparkDeployMode deployMode = SparkDeployMode.CLIENT;
@@ -105,7 +105,7 @@ public class ClusterConfig {
       defaultValue = "/streamsets",
       displayPosition = 106,
       dependsOn = "clusterType",
-      triggeredByValue = {"DATABRICKS", "SQL_SERVER_BIG_DATA_CLUSTER", "AZURE_HD_INSIGHT"}
+      triggeredByValue = {"DATABRICKS", "SQL_SERVER_BIG_DATA_CLUSTER", "AZURE_HD_INSIGHT", "EMR"}
   )
   public String stagingDir = "/streamsets";
 
@@ -161,5 +161,22 @@ public class ClusterConfig {
       triggeredByValue = "PIPELINE"
   )
   public String yarnKerberosPrincipal = "name@DOMAIN";
+
+  @ConfigDef(
+      required = false,
+      type = ConfigDef.Type.STRING,
+      label = "Cluster Callback URL",
+      description = "Optional callback URL for the Spark cluster to use to contact this Transformer instance. " +
+          "Use this format: http://<hostname>:<port>",
+      displayPosition = 20,
+      group = "ADVANCED",
+      dependencies = {
+          @Dependency(
+              configName = "^executionMode",
+              triggeredByValues = {"BATCH", "STREAMING"}
+          )
+      }
+  )
+  public String callbackUrl;
 
 }

@@ -57,49 +57,28 @@ public class StreamingXmlParser {
   private final Reader reader;
   private final XPathMatchingEventReader xmlEventReader;
   private final boolean useFieldAttributesInsteadOfFields;
+  private final boolean preserveRootElement;
   private String recordElement;
   private boolean closed;
 
   private String lastParsedFieldXpathPrefix;
-  private final LinkedList<String> elementNameStack = new LinkedList<>();
+  final LinkedList<String> elementNameStack = new LinkedList<>();
 
   private int generatedNsPrefixCount = 1;
   private final Map<String, String> namespaceUriToPrefix = new HashMap<>();
 
-  // reads a full XML document as a single Field
-  public StreamingXmlParser(Reader xmlEventReader) throws IOException, XMLStreamException {
-    this(xmlEventReader, null, null, 0, true);
-  }
-
-  // reads an XML document producing a Field for each first level 'recordElement' element, other first level elements
-  // are ignored
-  public StreamingXmlParser(Reader xmlEventReader, String recordElement)
-      throws IOException, XMLStreamException {
-    this(xmlEventReader, recordElement, null, 0, true);
-  }
-
-  public StreamingXmlParser(Reader xmlEventReader, String recordElement,  Map<String, String> namespaces)
-      throws IOException, XMLStreamException {
-    this(xmlEventReader, recordElement, namespaces, 0, true);
-  }
-
-  // reads an XML document producing a Field for each first level 'recordElement' element, other first level elements
-  // are ignored
-  public StreamingXmlParser(Reader reader, String recordElement, long initialPosition)
-      throws IOException, XMLStreamException {
-    this(reader, recordElement, null, initialPosition, true);
-  }
-
   public StreamingXmlParser(
-      Reader reader,
-      String recordElement,
-      Map<String, String> namespaces,
-      long initialPosition,
-      boolean useFieldAttributesInsteadOfFields
-  )
-      throws IOException, XMLStreamException {
+      final Reader reader,
+      final String recordElement,
+      final Map<String, String> namespaces,
+      final long initialPosition,
+      final boolean useFieldAttributesInsteadOfFields,
+      final boolean preserveRootElement
+  ) throws XMLStreamException {
+
     this.reader = reader;
     this.useFieldAttributesInsteadOfFields = useFieldAttributesInsteadOfFields;
+    this.preserveRootElement = preserveRootElement;
     if (Strings.isNullOrEmpty(recordElement)) {
       this.recordElement = Constants.ROOT_ELEMENT_PATH;
     } else {
@@ -124,7 +103,7 @@ public class StreamingXmlParser {
     if (initialPosition > 0) {
       //fastforward to initial position
       while (hasNext(xmlEventReader) && peek(xmlEventReader).getLocation().getCharacterOffset() < initialPosition) {
-        read(xmlEventReader);
+        processNextEvent();
         fastForwardLeaseReader();
       }
       xmlEventReader.clearLastMatch();
@@ -186,19 +165,17 @@ public class StreamingXmlParser {
 
       // we need to skip first level elements that are not the record delimiter and we have to ignore record delimiter
       // elements deeper than first level
-      while (hasNext(xmlEventReader) && !isStartOfRecord(peek(xmlEventReader), depth)) {
-        XMLEvent event = read(xmlEventReader);
-        if (event.isStartElement()) {
-          elementNameStack.addFirst(getNameAndTrackNs(event.asStartElement().getName()));
-          depth++;
-        } else if (event.getEventType() == XMLEvent.END_ELEMENT) {
-          elementNameStack.removeFirst();
-          depth--;
-        }
+      while (hasNext(xmlEventReader) && !isStartOfRecord()) {
+        depth += processNextEvent();
       }
       if (hasNext(xmlEventReader)) {
         StartElement startE = (StartElement) xmlEventReader.getLastMatchingEvent();
         field = parse(xmlEventReader, startE);
+
+        if (preserveRootElement) {
+          field = Field.create(Collections.singletonMap(startE.getName().toString(), field));
+        }
+
         // the while loop consumes the start element for a record, and the parse method above consumes the end
         // so remove it from the stack
         elementNameStack.removeFirst();
@@ -220,7 +197,7 @@ public class StreamingXmlParser {
     return "/" + StringUtils.join(Lists.reverse(elementNameStack), "/");
   }
 
-  private boolean isStartOfRecord(XMLEvent event, int depth) {
+  private boolean isStartOfRecord() {
     return xmlEventReader.getLastElementMatchResult() == MatchStatus.ELEMENT_MATCH;
   }
 
@@ -368,6 +345,19 @@ public class StreamingXmlParser {
   }
 
   protected void throwIfOverMaxObjectLength() throws XMLStreamException, ObjectLengthException {
+  }
+
+  private int processNextEvent() throws XMLStreamException {
+    XMLEvent event = read(xmlEventReader);
+    int depthUpdate = 0;
+    if (event.isStartElement()) {
+      elementNameStack.addFirst(getNameAndTrackNs(event.asStartElement().getName()));
+      depthUpdate = 1;
+    } else if (event.getEventType() == XMLEvent.END_ELEMENT) {
+      elementNameStack.removeFirst();
+      depthUpdate = -1;
+    }
+    return depthUpdate;
   }
 
 }

@@ -495,12 +495,6 @@ public class TestRemoteDataCollector {
     }
 
     @Override
-    public Map getUpdateInfo() {
-      // TODO Auto-generated method stub
-      return null;
-    }
-
-    @Override
     public String getToken() {
       // TODO Auto-generated method stub
       return null;
@@ -954,6 +948,8 @@ public class TestRemoteDataCollector {
       Mockito.when(runtimeInfo.getAppAuthToken()).thenReturn("");
       Mockito.when(runtimeInfo.getId()).thenReturn("fakeId");
       AclStoreTask aclStoreTask = Mockito.mock(AclStoreTask.class);
+      Configuration configuration = new Configuration();
+      configuration.set(RemoteDataCollector.SEND_METRIC_ATTEMPTS, 1);
       RemoteDataCollector dataCollector = new RemoteDataCollector(
           new Configuration(),
           new MockManager(),
@@ -970,7 +966,15 @@ public class TestRemoteDataCollector {
       dataCollector = Mockito.spy(dataCollector);
       Mockito.when(dataCollector.getRemotePipelines()).thenReturn(new ArrayList<>());
       RemoteDataCollector.StopAndDeleteCallable stopAndDeleteCallable = new RemoteDataCollector.StopAndDeleteCallable(
-          dataCollector, "user", "ns:name", "rev", 600000, Mockito.mock(EventClient.class), "fakeUrl", new HashMap<>(), new Configuration()
+          dataCollector,
+          "user",
+          "ns:name",
+          "rev",
+          600000,
+          Mockito.mock(EventClient.class),
+          "fakeUrl",
+          new HashMap<>(),
+          configuration
       );
       stopAndDeleteCallable.call();
 

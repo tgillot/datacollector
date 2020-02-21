@@ -35,6 +35,7 @@ import com.streamsets.pipeline.api.service.dataformats.SdcRecordGeneratorService
 import com.streamsets.pipeline.api.service.dataformats.WholeFileChecksumAlgorithm;
 import com.streamsets.pipeline.api.service.dataformats.WholeFileExistsAction;
 import com.streamsets.pipeline.api.service.dataformats.log.LogParserService;
+import com.streamsets.pipeline.api.service.sshtunnel.SshTunnelService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,14 +51,15 @@ import java.util.Set;
  * object rather then Service instance itself because we need to wrap each method execution to change active class
  * loader and execute the code in privileged mode to apply the proper permissions.
  */
-public class ServiceRuntime implements DataFormatGeneratorService, DataFormatParserService, LogParserService, SdcRecordGeneratorService {
+public class ServiceRuntime implements DataFormatGeneratorService, DataFormatParserService, LogParserService, SdcRecordGeneratorService, SshTunnelService {
 
   // Static list with all supported services
   private static Set<Class> SUPPORTED_SERVICES = ImmutableSet.of(
     DataFormatGeneratorService.class,
     DataFormatParserService.class,
     SdcRecordGeneratorService.class,
-    LogParserService.class
+    LogParserService.class,
+    SshTunnelService.class
   );
 
   /**
@@ -280,6 +282,44 @@ public class ServiceRuntime implements DataFormatGeneratorService, DataFormatPar
             cl,
             ((LogParserService) serviceBean.getService()).getLogParser(id, reader, offset)
         )
+    );
+  }
+
+  @Override // From SshTunnelService
+  public boolean isEnabled() {
+      return LambdaUtil.privilegedWithClassLoader(
+          serviceBean.getDefinition().getStageClassLoader(),
+          () -> ((SshTunnelService)serviceBean.getService()).isEnabled()
+      );
+  }
+
+  @Override // From SshTunnelService
+  public Map<HostPort, HostPort>  start(List<HostPort> targetHostsPorts) {
+    return LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+        () -> ((SshTunnelService)serviceBean.getService()).start(targetHostsPorts)
+    );
+  }
+
+  @Override // From SshTunnelService
+  public void healthCheck() {
+    LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+        () -> {
+          ((SshTunnelService) serviceBean.getService()).healthCheck();
+          return null;
+        }
+    );
+  }
+
+  @Override // From SshTunnelService
+  public void stop() {
+    LambdaUtil.privilegedWithClassLoader(
+        serviceBean.getDefinition().getStageClassLoader(),
+        () -> {
+          ((SshTunnelService) serviceBean.getService()).stop();
+          return null;
+        }
     );
   }
 }

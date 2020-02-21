@@ -30,7 +30,9 @@ public interface HttpReceiver {
 
   void destroy();
 
-  CredentialValue getAppId();
+  boolean isApplicationIdEnabled();
+
+  List<? extends CredentialValue> getAppIds();
 
   boolean isAppIdViaQueryParamAllowed();
 

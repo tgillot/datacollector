@@ -22,6 +22,9 @@ import com.streamsets.datacollector.client.api.SystemApi;
 import com.streamsets.pipeline.api.Field;
 import com.streamsets.pipeline.api.Stage;
 import com.streamsets.pipeline.api.StageException;
+import com.streamsets.pipeline.stage.common.ErrorRecordHandler;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +36,7 @@ import java.util.concurrent.ExecutionException;
 public class StartPipelineCommon {
 
   private static final Logger LOG = LoggerFactory.getLogger(StartPipelineCommon.class);
+  public static final String SSL_CONFIG_PREFIX = "conf.tlsConfig.";
   public ManagerApi managerApi;
   public StoreApi storeApi;
   private StartPipelineConfig conf;
@@ -42,29 +46,54 @@ public class StartPipelineCommon {
   }
 
   public List<Stage.ConfigIssue> init(List<Stage.ConfigIssue> issues, Stage.Context context) {
-    ApiClient apiClient;
-
-    // Validate Server is reachable
-    try {
-      apiClient = getApiClient();
-      SystemApi systemApi = new SystemApi(apiClient);
-      systemApi.getServerTime();
-    } catch (Exception ex) {
-      LOG.error(ex.getMessage(), ex);
-      issues.add(
-          context.createConfigIssue(
-              Groups.PIPELINE.getLabel(),
-              "conf.baseUrl",
-              Errors.START_PIPELINE_01,
-              ex.getMessage(),
-              ex
-          )
+    if (conf.tlsConfig.isEnabled()) {
+      conf.tlsConfig.init(
+          context,
+          Groups.TLS.name(),
+          SSL_CONFIG_PREFIX,
+          issues
       );
-      return issues;
     }
 
-    managerApi = new ManagerApi(apiClient);
-    storeApi = new StoreApi(apiClient);
+    if (CollectionUtils.isNotEmpty(conf.pipelineIdConfigList)) {
+      int index = 1;
+      for (PipelineIdConfig pipelineIdConfig: conf.pipelineIdConfigList) {
+        if (StringUtils.isEmpty(pipelineIdConfig.pipelineId)) {
+          Stage.ConfigIssue issue = context.createConfigIssue(
+              Groups.PIPELINE.name(),
+              "conf.pipelineIdConfigList",
+              StartPipelineErrors.START_PIPELINE_03,
+              index
+          );
+          issues.add(issue);
+          break;
+        }
+        index++;
+      }
+    }
+
+    // Validate Server is reachable
+    if (issues.size() == 0) {
+      try {
+        ApiClient apiClient = getApiClient();
+        SystemApi systemApi = new SystemApi(apiClient);
+        systemApi.getServerTime();
+        managerApi = new ManagerApi(apiClient);
+        storeApi = new StoreApi(apiClient);
+      } catch (Exception ex) {
+        LOG.error(ex.getMessage(), ex);
+        issues.add(
+            context.createConfigIssue(
+                Groups.PIPELINE.getLabel(),
+                "conf.baseUrl",
+                StartPipelineErrors.START_PIPELINE_01,
+                ex.getMessage(),
+                ex
+            )
+        );
+      }
+    }
+
     return issues;
   }
 
@@ -79,12 +108,13 @@ public class StartPipelineCommon {
     apiClient.setUsername(conf.username.get());
     apiClient.setPassword(conf.password.get());
     apiClient.setDPMBaseURL(conf.controlHubUrl);
-    return  apiClient;
+    apiClient.setSslContext(conf.tlsConfig.getSslContext());
+    return apiClient;
   }
 
   public LinkedHashMap<String, Field> startPipelineInParallel(
       List<CompletableFuture<Field>> startPipelineFutures,
-      Stage.Context context
+      ErrorRecordHandler errorRecordHandler
   ) throws ExecutionException, InterruptedException {
     // Create a combined Future using allOf()
     CompletableFuture<Void> allFutures = CompletableFuture.allOf(
@@ -106,7 +136,8 @@ public class StartPipelineCommon {
             success = false;
           }
         } catch (Exception ex) {
-          context.reportError(ex);
+          LOG.error(ex.toString(), ex);
+          errorRecordHandler.onError(StartPipelineErrors.START_PIPELINE_04, ex.toString(), ex);
         }
       }
       outputField.put("success", Field.create(success));

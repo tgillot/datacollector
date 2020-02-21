@@ -110,7 +110,7 @@ public class RemoteDataCollector implements DataCollector {
   private final BlobStoreTask blobStoreTask;
   private final SafeScheduledExecutorService eventHandlerExecutor;
   private final EventClient eventClient;
-  private String jobRunnerUrl;
+  private String jobRunnerMetricsUrl;
   private final Map<String, String> requestHeader;
   protected static final String SEND_METRIC_ATTEMPTS =  "pipeline.metrics.attempts";
   protected static final int DEFAULT_SEND_METRIC_ATTEMPTS = 0;
@@ -149,9 +149,8 @@ public class RemoteDataCollector implements DataCollector {
     requestHeader.put(SSOConstants.X_REST_CALL, SSOConstants.SDC_COMPONENT_NAME);
     requestHeader.put(SSOConstants.X_APP_AUTH_TOKEN, runtimeInfo.getAppAuthToken());
     requestHeader.put(SSOConstants.X_APP_COMPONENT_ID, runtimeInfo.getId());
-    jobRunnerUrl = remoteBaseURL + JOB_METRICS_URL;
-    String defaultUrl = remoteBaseURL + MESSAGING_EVENTS_URL;
-    eventClient = new EventClientImpl(defaultUrl, configuration);
+    jobRunnerMetricsUrl = remoteBaseURL + JOB_METRICS_URL;
+    eventClient = new EventClientImpl(configuration);
   }
 
   PipelineStoreTask getPipelineStoreTask() {
@@ -435,13 +434,21 @@ public class RemoteDataCollector implements DataCollector {
               pipelineState.getNextRetryTimeStamp()
           );
         }
-        // We're currently sending with attempts set to 0 because we are disabling this function by default
-        sendPipelineMetrics(remoteDataCollector, eventClient, jobRunnerUrl, requestHeader, attempts);
+        try {
+          // We're currently sending with attempts set to 0 because we are disabling this function by default
+          sendPipelineMetrics(remoteDataCollector, eventClient, jobRunnerUrl, requestHeader, attempts);
+        } catch (IOException | PipelineException ex) {
+          // if metrics sending fail, lets log an error and continue with delete of the pipeline
+          LOG.error(Utils.format("Cannot send metrics for pipeline: {} due to: {}", pipelineState.getPipelineId(), ex),
+              ex
+          );
+        }
         remoteDataCollector.delete(pipelineName, rev);
       } catch (Exception ex) {
         ackStatus = AckEventStatus.ERROR;
         ackEventMessage = Utils.format("Remote event type {} encountered error {}", EventType.STOP_DELETE_PIPELINE,
             ex);
+        LOG.error(ex.getMessage(), ex);
       }
       long endTime = System.currentTimeMillis();
       LOG.info("Time in secs to stop and delete pipeline {} is {}", pipelineName, (endTime - startTime)/1000);
@@ -461,7 +468,7 @@ public class RemoteDataCollector implements DataCollector {
         rev,
         forceTimeoutMillis,
         eventClient,
-        jobRunnerUrl,
+        jobRunnerMetricsUrl,
         requestHeader,
         configuration
     ));
@@ -494,7 +501,7 @@ public class RemoteDataCollector implements DataCollector {
         title = null;
       }
       pipelineAndValidationStatuses.add(new PipelineAndValidationStatus(
-          getSchGeneratedPipelineName(name, rev),
+          getSchGeneratedPipelineName(pipelineState),
           title,
           rev,
           pipelineState.getTimeStamp(),
@@ -562,12 +569,14 @@ public class RemoteDataCollector implements DataCollector {
 
 
   String getSchGeneratedPipelineName(String name, String rev) throws PipelineException {
+    return getSchGeneratedPipelineName(pipelineStateStore.getState(name, rev));
+  }
+
+  private String getSchGeneratedPipelineName(PipelineState pipelineState) {
     // return name with colon so control hub can interpret the job id from the name
-    Object schGenName = pipelineStateStore.getState(name, rev)
-        .getAttributes()
-        .get(RemoteDataCollector.SCH_GENERATED_PIPELINE_NAME);
+    Object schGenName = pipelineState.getAttributes().get(RemoteDataCollector.SCH_GENERATED_PIPELINE_NAME);
     // will be null for pipelines with version earlier than 3.7
-    return (schGenName == null) ? name : (String) schGenName;
+    return (schGenName == null) ? pipelineState.getPipelineId() : (String) schGenName;
   }
 
   @Override
